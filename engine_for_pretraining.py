@@ -13,8 +13,8 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
                     lr_schedule_values=None, wd_schedule_values=None):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    metric_logger.add_meter('min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.10f}'))
+    metric_logger.add_meter('min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.10f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
 

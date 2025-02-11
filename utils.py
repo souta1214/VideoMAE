@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import torch
 import torch.distributed as dist
-from torch._six import inf
+import math
 import random
 
 from tensorboardX import SummaryWriter
@@ -248,26 +248,30 @@ def save_on_master(*args, **kwargs):
 
 def init_distributed_mode(args):
     if args.dist_on_itp:
-        args.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
-        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
-        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
-        args.dist_url = "tcp://%s:%s" % (os.environ['MASTER_ADDR'], os.environ['MASTER_PORT'])
+        args.rank = int(os.environ.get('OMPI_COMM_WORLD_RANK', 0))
+        args.world_size = int(os.environ.get('OMPI_COMM_WORLD_SIZE', 1))
+        args.gpu = int(os.environ.get('OMPI_COMM_WORLD_LOCAL_RANK', 0))
+        args.dist_url = "tcp://%s:%s" % (os.environ.get('MASTER_ADDR', '127.0.0.1'), os.environ.get('MASTER_PORT', '29500'))
         os.environ['LOCAL_RANK'] = str(args.gpu)
         os.environ['RANK'] = str(args.rank)
         os.environ['WORLD_SIZE'] = str(args.world_size)
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
-        args.gpu = int(os.environ['SLURM_LOCALID'])
-        args.world_size = int(os.environ['SLURM_NTASKS'])
+        args.gpu = int(os.environ.get('SLURM_LOCALID', 0))
+        args.world_size = int(os.environ.get('SLURM_NTASKS', 1))
         os.environ['RANK'] = str(args.rank)
         os.environ['LOCAL_RANK'] = str(args.gpu)
         os.environ['WORLD_SIZE'] = str(args.world_size)
 
-        node_list = os.environ['SLURM_NODELIST']
-        addr = subprocess.getoutput(
-            f'scontrol show hostname {node_list} | head -n1')
-        if 'MASTER_ADDR' not in os.environ:
-            os.environ['MASTER_ADDR'] = addr
+        node_list = os.environ.get('SLURM_NODELIST', None)
+        if node_list:
+            addr = subprocess.getoutput(
+                f'scontrol show hostname {node_list} | head -n1')
+            if 'MASTER_ADDR' not in os.environ:
+                os.environ['MASTER_ADDR'] = addr
+            if 'MASTER_PORT' not in os.environ:
+                os.environ['MASTER_PORT'] = '29500'
+        args.dist_url = "tcp://%s:%s" % (os.environ.get('MASTER_ADDR', '127.0.0.1'), os.environ.get('MASTER_PORT', '29500'))
     elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ['WORLD_SIZE'])
@@ -375,7 +379,7 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if len(parameters) == 0:
         return torch.tensor(0.)
     device = parameters[0].grad.device
-    if norm_type == inf:
+    if norm_type == math.inf:
         total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
     else:
         total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)

@@ -6,6 +6,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import json
 import os
+import sys
 from pathlib import Path
 from timm.models import create_model
 from optim_factory import create_optimizer
@@ -15,6 +16,9 @@ from utils import NativeScalerWithGradNormCount as NativeScaler
 import utils
 import modeling_pretrain
 
+# local_rankを環境変数から取得してsys.argvに追加
+if 'LOCAL_RANK' in os.environ:
+    sys.argv.append(f'--local_rank={os.environ["LOCAL_RANK"]}')
 
 def get_args():
     parser = argparse.ArgumentParser('VideoMAE pre-training script', add_help=False)
@@ -85,8 +89,8 @@ def get_args():
     parser.add_argument('--data_path', default='/path/to/list_kinetics-400', type=str,
                         help='dataset path')
     parser.add_argument('--imagenet_default_mean_and_std', default=True, action='store_true')
-    parser.add_argument('--num_frames', type=int, default= 16)
-    parser.add_argument('--sampling_rate', type=int, default= 4)
+    parser.add_argument('--num_frames', type=int, default=16)
+    parser.add_argument('--sampling_rate', type=int, default=4)
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default=None,
@@ -154,7 +158,6 @@ def main(args):
     # get dataset
     dataset_train = build_pretraining_dataset(args)
 
-
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
     sampler_rank = global_rank
@@ -166,7 +169,6 @@ def main(args):
         dataset_train, num_replicas=num_tasks, rank=sampler_rank, shuffle=True
     )
     print("Sampler_train = %s" % str(sampler_train))
-
 
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
@@ -202,8 +204,7 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=False)
         model_without_ddp = model.module
 
-    optimizer = create_optimizer(
-        args, model_without_ddp)
+    optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
 
     print("Use step level LR & WD scheduler!")

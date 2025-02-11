@@ -479,6 +479,12 @@ class VideoMAE(torch.utils.data.Dataset):
                 # data in the "setting" file do not have extension, e.g., demo
                 # So we need to provide extension (i.e., .mp4) to complete the file name.
                 video_name = '{}.{}'.format(directory, self.video_ext)
+                    # 現在の作業ディレクトリを取得
+            current_working_directory = os.getcwd()
+            # デバッグログを追加
+            if not os.path.exists(video_name):
+                print(f"Error: File {video_name} does not exist.")
+                print(f"Current working directory: {current_working_directory}")
 
             decord_vr = decord.VideoReader(video_name, num_threads=1)
             duration = len(decord_vr)
@@ -554,3 +560,4 @@ class VideoMAE(torch.utils.data.Dataset):
         except:
             raise RuntimeError('Error occured in reading frames {} from video {} of duration {}.'.format(frame_id_list, directory, duration))
         return sampled_list
+
